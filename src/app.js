@@ -10,44 +10,6 @@ app.use(cors());
 
 const repositories = [];
 
-function logRequests(request, response, next) {
-  const { method, url } = request;
-
-  const logLabel = `[${method.toUpperCase()}] ${url} `;
-
-  console.time(logLabel);
-
-  next();
-
-  console.timeEnd(logLabel);
-}
-
-function validateRepositoryId(request, response, next) {
-  const { id } = request.params;
-
-  const projectIndex = repositories.findIndex(
-    (repository) => repository.id === id
-  );
-  if (projectIndex < 0) {
-    return response.status(400).json({ error: "Repository not found!" });
-  }
-
-  return next();
-}
-
-function checkParams(request, response, next) {
-  if (request.body.likes) {
-    return response
-      .status(400)
-      .json({ error: "Permission denied for changing likes!" });
-  }
-
-  return next();
-}
-
-app.use(logRequests);
-app.use("/repositories/:id", validateRepositoryId, checkParams);
-
 app.get("/repositories", (request, response) => {
   return response.json(repositories);
 });
@@ -68,50 +30,61 @@ app.post("/repositories", (request, response) => {
   return response.json(repository);
 });
 
-app.put("/repositories/:id", checkParams, (request, response) => {
+app.put("/repositories/:id", (request, response) => {
   const { id } = request.params;
   const { title, url, techs } = request.body;
 
-  const repositoryIndex = repositories.findIndex(
+  const findRepositoryIndex = repositories.findIndex(
     (repository) => repository.id === id
   );
+
+  if (findRepositoryIndex === -1) {
+    return response.status(400).json({ error: "Repository does not exist" });
+  }
 
   const repository = {
     id,
     title,
     url,
     techs,
+    likes: repositories[findRepositoryIndex].likes,
   };
 
-  repositories[repositoryIndex] = repository;
+  repositories[findRepositoryIndex] = repository;
 
-  return response.json({ repository });
+  return response.json(repository);
 });
 
 app.delete("/repositories/:id", (request, response) => {
   const { id } = request.params;
 
-  const repository = repositories.findIndex(
+  const findRepositoryIndex = repositories.findIndex(
     (repository) => repository.id === id
   );
 
-  repositories.splice(repository, 1);
+  if (findRepositoryIndex > 0) {
+    repositories.splice(findRepositoryIndex, 1);
+  } else {
+    return response.status(400).json({ error: "Repository does not exist" });
+  }
 
   return response.status(204).send();
 });
 
-app.post(
-  "/repositories/:id/like",
-  validateRepositoryId,
-  (request, response) => {
-    const { id } = request.params;
+app.post("/repositories/:id/like", (request, response) => {
+  const { id } = request.params;
 
-    const repository = repositories.find((repository) => repository.id == id);
+  const findRepositoryIndex = repositories.findIndex(
+    (repository) => repository.id == id
+  );
 
-    repository.likes += 1;
-
-    return response.json(repository);
+  if (findRepositoryIndex == -1) {
+    return response.status(400).json({ error: "Repository does not exists." });
   }
-);
+
+  repositories[findRepositoryIndex].likes += 1;
+
+  return response.json(repositories[findRepositoryIndex]);
+});
 
 module.exports = app;
